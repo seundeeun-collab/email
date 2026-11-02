@@ -1,2 +1,4 @@
-aiosmtpd
-flask
+aiosmtpd>=1.4.6
+flask>=3.0.0
+flask-limiter>=3.5.0
+python-dotenv>=1.0.0

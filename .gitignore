@@ -1,6 +1,19 @@
 __pycache__/
 *.py[cod]
-option2-raw-python/data/
-*.db
-*.eml
+.pytest_cache/
+.coverage
+htmlcov/
 *.log
+logs/
+
+# Preserve directory structure but ignore contents
+option2-raw-python/data/*
+!option2-raw-python/data/.gitkeep
+option2-raw-python/data/inbox/*
+!option2-raw-python/data/inbox/.gitkeep
+
+# Ignore local env and backups
+.env
+backups/
+*.zip
+*.tar.gz

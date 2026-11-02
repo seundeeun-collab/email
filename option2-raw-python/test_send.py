@@ -1,9 +1,8 @@
-"""Send three local SMTP messages to demonstrate catch-all acceptance."""
+"""Send local SMTP messages to demonstrate catch-all acceptance."""
 
 import argparse
-import smtplib
 from email.message import EmailMessage
-
+import smtplib
 
 MESSAGES = [
     ("test@localhost", "Catch-all test message", "This message checks test@localhost."),
@@ -15,16 +14,22 @@ MESSAGES = [
 def main():
     parser = argparse.ArgumentParser(description="Send catch-all SMTP test emails.")
     parser.add_argument("--port", type=int, default=1025, help="SMTP port (default: 1025)")
-    parser.add_argument("--to", dest="recipients", action="append", help="Recipient address; may be given multiple times")
+    parser.add_argument("--to", dest="recipients", action="append", help="Recipient address; may be comma-separated or given multiple times")
     parser.add_argument("--subject", default=None, help="Use this subject for custom recipients")
     args = parser.parse_args()
 
     messages = MESSAGES
     if args.recipients:
-        subject = args.subject or "Live Test 1,2,3"
+        subject = args.subject or "Production Live Test"
+        expanded = []
+        for r in args.recipients:
+            for part in r.split(","):
+                part = part.strip()
+                if part:
+                    expanded.append(part)
         messages = [
             (recipient, subject, f"This receive-only inbox test was sent to {recipient}.")
-            for recipient in args.recipients
+            for recipient in expanded
         ]
 
     with smtplib.SMTP("localhost", args.port, timeout=10) as smtp:

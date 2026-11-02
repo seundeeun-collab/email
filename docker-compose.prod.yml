@@ -1,0 +1,46 @@
+services:
+  smtp:
+    container_name: email-smtp-prod
+    build:
+      context: ./option2-raw-python
+      dockerfile: Dockerfile.prod
+    command: ["python", "server.py", "--host", "0.0.0.0", "--port", "1025"]
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "25:1025"
+      - "1025:1025"
+    volumes:
+      - ./option2-raw-python/data:/app/data
+      - ./option2-raw-python/logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"127.0.0.1\", 1025), timeout=2)' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  web:
+    container_name: email-web-prod
+    build:
+      context: ./option2-raw-python
+      dockerfile: Dockerfile.prod
+    command: ["python", "app.py"]
+    restart: always
+    depends_on:
+      smtp:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./option2-raw-python/data:/app/data
+      - ./option2-raw-python/logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5000/health\", timeout=2)' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

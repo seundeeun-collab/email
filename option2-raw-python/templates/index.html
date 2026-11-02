@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Virtual Email Server · Live Production Inbox</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#6366f1', 600: '#4f46e5' },
+            dark: { 950: '#0b0f19', 900: '#111827', 850: '#161f33', 800: '#1f293d', 700: '#374151' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.15); }
+    }
+    .pulse-live { animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  </style>
+</head>
+<body class="bg-dark-950 text-slate-100 font-sans min-h-screen flex flex-col h-screen overflow-hidden">
+
+  <!-- Top Notification Toast Container -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Header -->
+  <header class="h-14 bg-dark-900 border-b border-dark-800 flex items-center justify-between px-5 shrink-0 z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-lg shadow-md shadow-indigo-600/30">
+        ✉
+      </div>
+      <div>
+        <div class="font-bold text-sm tracking-tight flex items-center gap-2">
+          Virtual Email Server
+          <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Production</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Status Indicators -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-live"></span>
+        <span id="liveStatusText">Listening on port {{ smtp_port }} · Live</span>
+      </div>
+
+      <div class="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-dark-800 border border-dark-700 text-xs text-slate-300">
+        <span id="sseIndicator" class="w-2 h-2 rounded-full bg-indigo-400"></span>
+        <span id="sseText">SSE Streaming</span>
+      </div>
+
+      <a href="/api/emails" target="_blank" class="text-xs px-2.5 py-1 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 text-slate-300 flex items-center gap-1 transition">
+        <span>API</span>
+        <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+      </a>
+
+      {% if auth_enabled %}
+      <a href="/logout" class="text-xs text-rose-400 hover:text-rose-300 px-2 py-1 transition">Logout</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- Application Body: 3-column / 2-column layout -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Left Sidebar: Virtual Addresses & Filters -->
+    <aside class="w-64 bg-dark-900 border-r border-dark-800 flex flex-col shrink-0 hidden md:flex">
+      <div class="p-4 border-b border-dark-800">
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="p-2 rounded-xl bg-dark-850 border border-dark-800">
+            <div id="statTotal" class="text-lg font-bold text-white">{{ stats.total }}</div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider">Total Mail</div>
+          </div>
+          <div class="p-2 rounded-xl bg-dark-850 border border-dark-800">
+            <div id="statToday" class="text-lg font-bold text-emerald-400">{{ stats.today }}</div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider">Today</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Action: Export -->
+      <div class="p-3 border-b border-dark-800 flex gap-2">
+        <a href="/api/export/csv" class="flex-1 text-center py-1.5 px-2 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 text-xs text-slate-200 transition font-medium flex items-center justify-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          Export CSV
+        </a>
+      </div>
+
+      <!-- Virtual Addresses List -->
+      <div class="p-3">
+        <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2 mb-2 flex items-center justify-between">
+          <span>Virtual Inboxes</span>
+          <span class="text-[10px] text-slate-500 font-normal">Catch-All</span>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto px-2 space-y-1" id="recipientsNav">
+        <button onclick="selectRecipientFilter('')"
+                class="recipient-nav-btn w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition {% if not active_recipient %}bg-indigo-600/20 text-indigo-300 border border-indigo-500/30{% else %}text-slate-400 hover:bg-dark-800 hover:text-slate-200{% endif %}"
+                data-recipient="">
+          <span class="truncate">All Recipients</span>
+          <span class="ml-2 px-1.5 py-0.5 rounded-full bg-dark-800 text-[10px] font-mono text-slate-400" id="allCountBadge">{{ emails|length }}</span>
+        </button>
+        {% for r in distinct_recipients %}
+        <button onclick="selectRecipientFilter('{{ r.to_addr }}')"
+                class="recipient-nav-btn w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition {% if active_recipient == r.to_addr %}bg-indigo-600/20 text-indigo-300 border border-indigo-500/30{% else %}text-slate-400 hover:bg-dark-800 hover:text-slate-200{% endif %}"
+                data-recipient="{{ r.to_addr }}">
+          <span class="truncate" title="{{ r.to_addr }}">{{ r.to_addr }}</span>
+          <span class="ml-2 px-1.5 py-0.5 rounded-full bg-dark-800 text-[10px] font-mono text-slate-400">{{ r.count }}</span>
+        </button>
+        {% endfor %}
+      </div>
+
+      <div class="p-3 border-t border-dark-800 text-[11px] text-slate-500 text-center">
+        SQLite & Postgres Ready · SSE Live
+      </div>
+    </aside>
+
+    <!-- Center Column: Message List & Search -->
+    <section class="flex-1 flex flex-col min-w-0 border-r border-dark-800 bg-dark-950">
+      <!-- Search & Filters Toolbar -->
+      <div class="p-3 border-b border-dark-800 bg-dark-900/60 flex items-center gap-3">
+        <div class="relative flex-1">
+          <svg class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <input type="text" id="searchInput"
+                 value="{{ active_recipient or '' }}"
+                 placeholder="Filter by recipient (to_addr), sender, or subject..."
+                 class="w-full bg-dark-950 border border-dark-800 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition">
+          <button id="searchClearBtn" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs hidden">✕</button>
+        </div>
+      </div>
+
+      <!-- Email Cards List -->
+      <div class="flex-1 overflow-y-auto divide-y divide-dark-850" id="emailsListContainer">
+        {% for email in emails %}
+        <div class="email-item p-4 cursor-pointer hover:bg-dark-900/80 transition relative"
+             data-id="{{ email.id }}"
+             data-to="{{ email.to_addr|lower }}"
+             data-from="{{ email.from_addr|lower }}"
+             data-subject="{{ email.subject|lower }}"
+             onclick="selectEmail({{ email.id }})">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+              To: {{ email.to_addr }}
+            </span>
+            <time class="text-[11px] text-slate-500 shrink-0 font-mono">{{ email.created_at[:19] }}</time>
+          </div>
+          <div class="text-xs text-slate-400 mb-1 truncate">
+            From: <span class="text-slate-300 font-mono">{{ email.from_addr }}</span>
+          </div>
+          <div class="text-sm font-semibold text-slate-100 truncate mb-1">
+            {{ email.subject or '(no subject)' }}
+          </div>
+          <div class="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+            {{ email.body }}
+          </div>
+        </div>
+        {% else %}
+        <div class="p-12 text-center text-slate-500" id="emptyStatePlaceholder">
+          <div class="text-3xl mb-2">📭</div>
+          <div class="text-sm font-medium text-slate-400">No emails yet</div>
+          <div class="text-xs mt-1">Send mail to any recipient on port {{ smtp_port }}. All messages are captured here live.</div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Right Column: Email Detail Reader -->
+    <aside class="w-1/2 bg-dark-900 flex flex-col shrink-0 hidden lg:flex" id="detailPanel">
+      <div class="p-4 border-b border-dark-800 flex items-center justify-between">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Message Viewer</h2>
+        <div class="flex items-center gap-2" id="detailActions" style="display:none">
+          <a id="downloadEmlBtn" href="#" class="px-2.5 py-1 rounded-lg bg-dark-800 hover:bg-dark-700 text-xs text-slate-300 border border-dark-700 transition">
+            Download .eml
+          </a>
+          <button onclick="copyEmailBody()" class="px-2.5 py-1 rounded-lg bg-dark-800 hover:bg-dark-700 text-xs text-slate-300 border border-dark-700 transition">
+            Copy Body
+          </button>
+        </div>
+      </div>
+
+      <div id="detailEmpty" class="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
+        <div class="text-4xl mb-3">📬</div>
+        <div class="text-sm font-medium text-slate-400">Select an email to view</div>
+        <div class="text-xs text-slate-500 mt-1 max-w-xs">Click any incoming message from the list to inspect recipient, body, and raw headers.</div>
+      </div>
+
+      <div id="detailContent" class="flex-1 flex flex-col overflow-hidden" style="display:none">
+        <!-- Message Metadata -->
+        <div class="p-5 border-b border-dark-800 space-y-2 bg-dark-950/40">
+          <h1 id="detailSubject" class="text-lg font-bold text-white tracking-tight"></h1>
+          <div class="grid grid-cols-[60px_1fr] gap-1 text-xs">
+            <span class="text-slate-500 font-semibold">To:</span>
+            <span id="detailTo" class="font-mono text-indigo-300"></span>
+            <span class="text-slate-500 font-semibold">From:</span>
+            <span id="detailFrom" class="font-mono text-slate-300"></span>
+            <span class="text-slate-500 font-semibold">Date:</span>
+            <span id="detailDate" class="text-slate-400"></span>
+          </div>
+        </div>
+
+        <!-- View Tabs -->
+        <div class="flex border-b border-dark-800 px-5 bg-dark-900 text-xs">
+          <button id="tabBodyBtn" onclick="setDetailTab('body')" class="py-2.5 px-3 border-b-2 border-indigo-500 text-indigo-400 font-semibold">
+            Parsed Body
+          </button>
+          <button id="tabRawBtn" onclick="setDetailTab('raw')" class="py-2.5 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200">
+            Raw MIME (RFC 822)
+          </button>
+        </div>
+
+        <!-- Body Scroll Area -->
+        <div class="flex-1 overflow-y-auto p-5">
+          <div id="detailBody" class="whitespace-pre-wrap font-sans text-sm text-slate-200 leading-relaxed"></div>
+          <pre id="detailRaw" class="whitespace-pre-wrap font-mono text-xs text-sky-300 bg-dark-950 p-4 rounded-xl border border-dark-800" style="display:none"></pre>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    let emails = {{ emails_json|safe }};
+    let activeEmail = null;
+    let currentFilter = '{{ active_recipient or "" }}'.toLowerCase();
+
+    const emailsContainer = document.getElementById('emailsListContainer');
+    const searchInput = document.getElementById('searchInput');
+    const searchClearBtn = document.getElementById('searchClearBtn');
+
+    // Filter Logic
+    function applyFilter() {
+      const q = (searchInput.value || '').trim().toLowerCase();
+      searchClearBtn.style.display = q ? 'block' : 'none';
+
+      const items = document.querySelectorAll('.email-item');
+      items.forEach(el => {
+        const to = el.getAttribute('data-to') || '';
+        const from = el.getAttribute('data-from') || '';
+        const subj = el.getAttribute('data-subject') || '';
+        const matches = !q || to.includes(q) || from.includes(q) || subj.includes(q);
+        el.style.display = matches ? '' : 'none';
+      });
+    }
+
+    searchInput.addEventListener('input', applyFilter);
+    searchClearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      applyFilter();
+      searchInput.focus();
+    });
+
+    function selectRecipientFilter(addr) {
+      searchInput.value = addr;
+      applyFilter();
+
+      document.querySelectorAll('.recipient-nav-btn').forEach(btn => {
+        if (btn.getAttribute('data-recipient') === addr) {
+          btn.className = "recipient-nav-btn w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition bg-indigo-600/20 text-indigo-300 border border-indigo-500/30";
+        } else {
+          btn.className = "recipient-nav-btn w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition text-slate-400 hover:bg-dark-800 hover:text-slate-200";
+        }
+      });
+    }
+
+    // Detail Panel
+    function selectEmail(id) {
+      const email = emails.find(e => e.id === id);
+      if (!email) return;
+      activeEmail = email;
+
+      document.getElementById('detailEmpty').style.display = 'none';
+      document.getElementById('detailContent').style.display = 'flex';
+      document.getElementById('detailActions').style.display = 'flex';
+
+      document.getElementById('detailSubject').textContent = email.subject || '(no subject)';
+      document.getElementById('detailTo').textContent = email.to_addr;
+      document.getElementById('detailFrom').textContent = email.from_addr;
+      document.getElementById('detailDate').textContent = email.created_at;
+      document.getElementById('detailBody').textContent = email.body;
+      document.getElementById('detailRaw').textContent = email.raw;
+
+      document.getElementById('downloadEmlBtn').href = '/api/export/eml/' + email.id;
+
+      setDetailTab('body');
+
+      // Highlight selected item
+      document.querySelectorAll('.email-item').forEach(el => {
+        if (parseInt(el.getAttribute('data-id')) === id) {
+          el.classList.add('bg-dark-850', 'border-l-2', 'border-l-indigo-500');
+        } else {
+          el.classList.remove('bg-dark-850', 'border-l-2', 'border-l-indigo-500');
+        }
+      });
+    }
+
+    function setDetailTab(tab) {
+      const bodyBtn = document.getElementById('tabBodyBtn');
+      const rawBtn = document.getElementById('tabRawBtn');
+      const bodyEl = document.getElementById('detailBody');
+      const rawEl = document.getElementById('detailRaw');
+
+      if (tab === 'body') {
+        bodyBtn.className = "py-2.5 px-3 border-b-2 border-indigo-500 text-indigo-400 font-semibold";
+        rawBtn.className = "py-2.5 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200";
+        bodyEl.style.display = 'block';
+        rawEl.style.display = 'none';
+      } else {
+        bodyBtn.className = "py-2.5 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200";
+        rawBtn.className = "py-2.5 px-3 border-b-2 border-indigo-500 text-indigo-400 font-semibold";
+        bodyEl.style.display = 'none';
+        rawEl.style.display = 'block';
+      }
+    }
+
+    function copyEmailBody() {
+      if (!activeEmail) return;
+      navigator.clipboard.writeText(activeEmail.body);
+      showToast("Copied email body to clipboard");
+    }
+
+    // Toast Notification
+    function showToast(title, subtitle) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = "pointer-events-auto bg-dark-900 border border-indigo-500/40 text-white px-4 py-3 rounded-xl shadow-2xl flex items-start gap-3 max-w-sm transition-all duration-300 transform translate-y-2 opacity-0";
+      toast.innerHTML = `
+        <div class="w-6 h-6 rounded-md bg-indigo-600/30 text-indigo-400 flex items-center justify-center shrink-0 text-sm">✉</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs font-semibold text-indigo-300 truncate">${title}</div>
+          ${subtitle ? `<div class="text-[11px] text-slate-400 truncate mt-0.5">${subtitle}</div>` : ''}
+        </div>
+      `;
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Server-Sent Events (SSE) Real-Time Listener
+    function setupSSE() {
+      const sseIndicator = document.getElementById('sseIndicator');
+      const sseText = document.getElementById('sseText');
+
+      try {
+        const evtSource = new EventSource('/api/stream');
+
+        evtSource.onopen = function() {
+          sseIndicator.className = "w-2 h-2 rounded-full bg-emerald-400";
+          sseText.textContent = "SSE Live";
+        };
+
+        evtSource.addEventListener('new_email', function(e) {
+          const newMail = JSON.parse(e.data);
+          emails.unshift(newMail);
+
+          // Update Counters
+          const statTotal = document.getElementById('statTotal');
+          const statToday = document.getElementById('statToday');
+          const allBadge = document.getElementById('allCountBadge');
+          if (statTotal) statTotal.textContent = parseInt(statTotal.textContent || '0') + 1;
+          if (statToday) statToday.textContent = parseInt(statToday.textContent || '0') + 1;
+          if (allBadge) allBadge.textContent = emails.length;
+
+          // Remove empty placeholder if any
+          const ph = document.getElementById('emptyStatePlaceholder');
+          if (ph) ph.remove();
+
+          // Render card and insert at top
+          const card = document.createElement('div');
+          card.className = "email-item p-4 cursor-pointer hover:bg-dark-900/80 transition relative bg-indigo-950/20";
+          card.setAttribute('data-id', newMail.id);
+          card.setAttribute('data-to', (newMail.to_addr || '').toLowerCase());
+          card.setAttribute('data-from', (newMail.from_addr || '').toLowerCase());
+          card.setAttribute('data-subject', (newMail.subject || '').toLowerCase());
+          card.onclick = () => selectEmail(newMail.id);
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+                To: ${newMail.to_addr}
+              </span>
+              <time class="text-[11px] text-slate-500 shrink-0 font-mono">${(newMail.created_at || '').substring(0, 19)}</time>
+            </div>
+            <div class="text-xs text-slate-400 mb-1 truncate">
+              From: <span class="text-slate-300 font-mono">${newMail.from_addr}</span>
+            </div>
+            <div class="text-sm font-semibold text-slate-100 truncate mb-1">
+              ${newMail.subject || '(no subject)'}
+            </div>
+            <div class="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+              ${newMail.body || ''}
+            </div>
+          `;
+          emailsContainer.insertBefore(card, emailsContainer.firstChild);
+
+          // Show Toast
+          showToast(`New email for ${newMail.to_addr}`, newMail.subject || '(no subject)');
+          applyFilter();
+        });
+
+        evtSource.onerror = function() {
+          sseIndicator.className = "w-2 h-2 rounded-full bg-amber-400";
+          sseText.textContent = "Reconnecting...";
+        };
+      } catch (err) {
+        console.warn("SSE not supported or connection error", err);
+      }
+    }
+
+    // Auto-select first email if available on large screens
+    if (emails.length > 0 && window.innerWidth >= 1024) {
+      selectEmail(emails[0].id);
+    }
+
+    setupSSE();
+  </script>
+</body>
+</html>
