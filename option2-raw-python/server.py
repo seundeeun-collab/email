@@ -1,9 +1,10 @@
-"""Production-grade receive-only catch-all SMTP server."""
+"""100% Free Production-Grade Receive-Only Catch-All SMTP Server."""
 
 import argparse
 from datetime import datetime, timezone
 from email import policy
 from email.parser import BytesParser
+import json
 import logging
 import os
 from pathlib import Path
@@ -11,7 +12,6 @@ import re
 import sys
 import time
 import urllib.request
-import json
 import uuid
 
 from aiosmtpd.controller import Controller
@@ -179,13 +179,13 @@ class ProductionCatchAllHandler:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run production catch-all SMTP server.")
+    parser = argparse.ArgumentParser(description="Run 100% free production catch-all SMTP server.")
     parser.add_argument("--port", type=int, default=None, help="SMTP port")
     parser.add_argument("--host", default=None, help="SMTP host")
     parser.add_argument("--max-size", type=int, default=None, help="Max email size in MB")
     args = parser.parse_args()
 
-    host = args.host or os.getenv("SMTP_HOST", "0.0.0.0")
+    host = args.host or os.getenv("SMTP_HOST", "127.0.0.1")
     port = args.port or int(os.getenv("SMTP_PORT", "1025"))
     max_size_mb = args.max_size or int(os.getenv("MAX_EMAIL_SIZE_MB", "10"))
     web_port = int(os.getenv("WEB_PORT", "5000"))

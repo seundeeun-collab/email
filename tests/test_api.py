@@ -70,3 +70,17 @@ def test_api_stats(client):
     assert "total" in data
     assert "today" in data
     assert "top_recipients" in data
+
+def test_api_inbound_cloudflare_webhook(client):
+    payload = {
+        "from": "cf-sender@example.com",
+        "to": "cf-test@domain.com",
+        "subject": "Cloudflare Test Message",
+        "raw": "From: cf-sender@example.com\r\nTo: cf-test@domain.com\r\nSubject: Cloudflare Test Message\r\n\r\nTest body payload.",
+        "created_at": "2026-11-02T22:10:00Z"
+    }
+    resp = client.post("/api/inbound", json=payload)
+    assert resp.status_code == 201
+    data = resp.get_json()
+    assert data["status"] == "received"
+    assert data["to"] == "cf-test@domain.com"

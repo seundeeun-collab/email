@@ -5,12 +5,21 @@ __pycache__/
 htmlcov/
 *.log
 logs/
+server.log
+app.log
 
-# Preserve directory structure but ignore contents
+# Data and SQLite files
+data/
 option2-raw-python/data/*
 !option2-raw-python/data/.gitkeep
 option2-raw-python/data/inbox/*
 !option2-raw-python/data/inbox/.gitkeep
+
+# Frontend build artifacts
+node_modules/
+dist/
+frontend-lovable-free/node_modules/
+frontend-lovable-free/dist/
 
 # Ignore local env and backups
 .env
