@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from email import policy
 from email.parser import BytesParser
+import argparse
 from pathlib import Path
 import sqlite3
 import time
@@ -97,12 +98,16 @@ class CatchAllHandler:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run the receive-only catch-all SMTP server.")
+    parser.add_argument("--port", type=int, default=1025, help="SMTP listening port (default: 1025)")
+    parser.add_argument("--host", default="0.0.0.0", help="SMTP listening host (default: 0.0.0.0)")
+    args = parser.parse_args()
     initialize_database()
     # Port 1025 runs without elevated privileges. For a public mail server,
     # route external SMTP port 25 to this listener (for example, Docker 25:1025).
-    controller = Controller(CatchAllHandler(), hostname="0.0.0.0", port=1025)
+    controller = Controller(CatchAllHandler(), hostname=args.host, port=args.port)
     controller.start()
-    print("Catch-all SMTP listener ready on 0.0.0.0:1025", flush=True)
+    print(f"Catch-all SMTP listener ready on {args.host}:{args.port}", flush=True)
     print(f"SQLite database: {DB_PATH}", flush=True)
     try:
         while True:

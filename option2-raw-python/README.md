@@ -16,6 +16,8 @@ Terminal 1, start the catch-all SMTP listener:
 python server.py
 ```
 
+On Windows, run `python server.py --host 127.0.0.1` for a local-only listener. `aiosmtpd`'s startup readiness probe cannot connect back to a `0.0.0.0` bind on Windows. Linux and Docker use the default `0.0.0.0` listener.
+
 Terminal 2, start the inbox website:
 
 ```sh

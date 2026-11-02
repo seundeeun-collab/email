@@ -3,3 +3,4 @@ __pycache__/
 option2-raw-python/data/
 *.db
 *.eml
+*.log

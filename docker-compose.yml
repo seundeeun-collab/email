@@ -1,5 +1,6 @@
 services:
   smtp:
+    container_name: email-backend-1
     build:
       context: ./option2-raw-python
     command: ["python", "server.py"]
@@ -7,9 +8,10 @@ services:
     ports:
       - "25:1025"
     volumes:
-      - virtual-email-data:/app/data
+      - ./option2-raw-python/data:/app/data
 
   web:
+    container_name: email-frontend-1
     build:
       context: ./option2-raw-python
     command: ["python", "app.py"]
@@ -19,7 +21,4 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - virtual-email-data:/app/data
-
-volumes:
-  virtual-email-data:
+      - ./option2-raw-python/data:/app/data
