@@ -5,6 +5,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+try {
+  const env = await readFile(path.join(root, '.env'), 'utf8');
+  for (const line of env.split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
+  }
+} catch {}
 const dataDir = path.join(root, '.data');
 const dbFile = path.join(dataDir, 'inbox.json');
 const port = Number(process.env.PORT || 3000);
