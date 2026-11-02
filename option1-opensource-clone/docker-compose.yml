@@ -1,0 +1,20 @@
+services:
+  inbucket:
+    image: inbucket/inbucket
+    restart: unless-stopped
+    ports:
+      - "2500:2500" # SMTP
+      - "9000:9000" # Web UI and REST API
+      - "1100:1100" # POP3
+    environment:
+      INBUCKET_SMTP_DEFAULTACCEPT: "true"
+      INBUCKET_SMTP_DEFAULTSTORE: "true"
+      INBUCKET_MAILBOXNAMING: "local"
+      INBUCKET_STORAGE_TYPE: "file"
+      INBUCKET_STORAGE_PARAMS: "path:/storage"
+      INBUCKET_STORAGE_RETENTIONPERIOD: "168h"
+    volumes:
+      - inbucket-data:/storage
+
+volumes:
+  inbucket-data:

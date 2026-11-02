@@ -1,0 +1,25 @@
+services:
+  smtp:
+    build:
+      context: ./option2-raw-python
+    command: ["python", "server.py"]
+    restart: unless-stopped
+    ports:
+      - "25:1025"
+    volumes:
+      - virtual-email-data:/app/data
+
+  web:
+    build:
+      context: ./option2-raw-python
+    command: ["python", "app.py"]
+    restart: unless-stopped
+    depends_on:
+      - smtp
+    ports:
+      - "5000:5000"
+    volumes:
+      - virtual-email-data:/app/data
+
+volumes:
+  virtual-email-data:

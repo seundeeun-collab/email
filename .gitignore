@@ -1,4 +1,5 @@
-.env
-.data/
-node_modules/
-npm-debug.log*
+__pycache__/
+*.py[cod]
+option2-raw-python/data/
+*.db
+*.eml
