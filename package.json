@@ -1,0 +1,9 @@
+{
+  "name": "letterbox-inbox",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A personal inbox for custom email addresses with live notifications.",
+  "type": "module",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" }
+}
