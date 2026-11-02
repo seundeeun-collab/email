@@ -18,6 +18,11 @@ const port = Number(process.env.PORT || 3000);
 const domain = (process.env.MAIL_DOMAIN || '').trim().toLowerCase();
 let db = { mailboxes: [], messages: [] };
 try { db = JSON.parse(await readFile(dbFile, 'utf8')); } catch {}
+const eventClients = new Set();
+function publish(event, data) {
+  const packet = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const client of eventClients) client.write(packet);
+}
 const save = async () => { await mkdir(dataDir, { recursive: true }); await writeFile(dbFile, JSON.stringify(db, null, 2)); };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
 const readBody = async (req) => { let body = ''; for await (const chunk of req) { body += chunk; if (body.length > 1_000_000) throw new Error('Request too large'); } return body; };
@@ -64,10 +69,18 @@ const server = http.createServer(async (req, res) => {
       }
       const recipients = Array.isArray(data.to) ? data.to : [data.to].filter(Boolean);
       db.messages.unshift({ id: data.email_id, from: data.from || 'Unknown sender', to: recipients, subject: data.subject || '(no subject)', text: content.text || '', html: content.html || '', receivedAt: data.created_at || new Date().toISOString(), unread: true, attachments: data.attachments || [] });
-      await save(); return json(res, 200, { ok: true });
+      await save(); publish('message.received', db.messages[0]); return json(res, 200, { ok: true });
     }
     if (url.pathname.startsWith('/api/')) {
       if (!authorized(req)) return json(res, 401, { error: 'Sign in to continue.' });
+      if (url.pathname === '/api/events' && req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+        res.write(`event: ready\ndata: ${JSON.stringify({ connected: true })}\n\n`);
+        eventClients.add(res);
+        const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), 20000);
+        req.on('close', () => { clearInterval(heartbeat); eventClients.delete(res); });
+        return;
+      }
       if (url.pathname === '/api/config' && req.method === 'GET') return json(res, 200, { domain, locked: Boolean(process.env.APP_PASSWORD), configured: Boolean(domain && process.env.RESEND_API_KEY && process.env.RESEND_WEBHOOK_SECRET) });
       if (url.pathname === '/api/mailboxes' && req.method === 'GET') return json(res, 200, db.mailboxes);
       if (url.pathname === '/api/mailboxes' && req.method === 'POST') {

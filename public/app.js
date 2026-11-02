@@ -37,6 +37,23 @@ function showDetail(m) {
   $('#archive-message').onclick=async()=>{m.archived=true;state.selected=null;render();};
 }
 async function load() { try { [state.config,state.mailboxes,state.messages]=await Promise.all([api('/api/config'),api('/api/mailboxes'),api('/api/messages')]); render(); } catch(e) { if(e.message==='Sign in to continue.') { $('#login').classList.remove('hidden'); $('#app-shell').style.display='none'; } else toast(e.message); } }
+let messageStream;
+function listenForMessages() {
+  if (messageStream) messageStream.close();
+  messageStream = new EventSource('/api/events');
+  messageStream.addEventListener('ready', async () => {
+    $('#live-label').textContent='Live inbox'; $('.live-indicator').classList.add('connected');
+    try { state.messages=await api('/api/messages'); render(); } catch {}
+  });
+  messageStream.addEventListener('message.received', event => {
+    const message=JSON.parse(event.data);
+    if (state.messages.some(m=>m.id===message.id)) return;
+    state.messages.unshift(message); render();
+    toast('You have a new message.');
+    if ('Notification' in window && Notification.permission==='granted') new Notification(message.from,{body:message.subject||'New email'});
+  });
+  messageStream.onerror=()=>{ $('#live-label').textContent='Reconnecting'; $('.live-indicator').classList.remove('connected'); };
+}
 async function createAddress() { $('#address-error').textContent=''; try { const item=await api('/api/mailboxes',{method:'POST',body:JSON.stringify({name:$('#address-name').value})}); state.mailboxes.push(item); state.address=item.address; $('#address-dialog').close(); $('#address-name').value=''; render(); toast('Your new address is ready.'); } catch(e) { $('#address-error').textContent=e.message; } }
 function openAddress() { if(!state.config.domain) { $('#settings-dialog').showModal(); return; } $('#address-error').textContent=''; $('#address-dialog').showModal(); setTimeout(()=>$('#address-name').focus(),80); }
 document.querySelectorAll('[data-view]').forEach(el=>el.addEventListener('click',()=>{state.view=el.dataset.view;state.address='';render();}));
@@ -50,6 +67,4 @@ $('#copy-main').onclick=async()=>{const text=state.mailboxes[0]?.address;if(!tex
 $('#notification-toggle').onclick=async()=>{if(!('Notification'in window))return toast('This browser does not support notifications.');const result=await Notification.requestPermission();toast(result==='granted'?'Notifications enabled.':'Notifications are turned off.');};
 $('#login-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/login',{method:'POST',body:JSON.stringify({password:$('#password').value})});$('#login').classList.add('hidden');$('#app-shell').style.display='grid';await load();}catch(err){$('#login-error').textContent=err.message;}};
 document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#search').focus();}});
-let known=new Set();
-async function poll(){try{const next=await api('/api/messages');const incoming=next.filter(m=>!known.has(m.id));if(known.size&&incoming.length){incoming.forEach(m=>{if(Notification.permission==='granted')new Notification(m.from,{body:m.subject||'New email'});});toast(incoming.length===1?'You have a new message.':`You have ${incoming.length} new messages.`);}known=new Set(next.map(m=>m.id));const before=state.messages.map(m=>`${m.id}:${m.unread}`).join('|');state.messages=next;if(before!==next.map(m=>`${m.id}:${m.unread}`).join('|'))render();}catch{} }
-load().then(()=>{known=new Set(state.messages.map(m=>m.id));setInterval(poll,12000);});
+load().then(()=>{if(!$('#login').classList.contains('hidden'))return;listenForMessages();});

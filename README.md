@@ -1,6 +1,6 @@
 # Letterbox
 
-A personal inbox for creating custom email addresses, reading received mail, and getting browser notifications. The app includes a Resend inbound webhook, a lightweight JSON store, and an optional password gate.
+A personal, receive-only inbox for creating custom email addresses, reading received mail, and getting browser notifications. Incoming messages are pushed to open inboxes immediately with Server-Sent Events. The app includes a Resend inbound webhook, a lightweight JSON store, and an optional password gate.
 
 ## Run locally
 
