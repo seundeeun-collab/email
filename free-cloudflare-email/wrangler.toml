@@ -1,5 +1,6 @@
 name = "free-email-forwarder"
 main = "worker.js"
 compatibility_date = "2024-01-01"
+
 [vars]
-LOVABLE_API_URL = "https://your-inbox.lovable.app"
+LOVABLE_API_URL = "https://inbox-orbit-mail-viewer.lovable.app"

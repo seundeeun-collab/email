@@ -1,14 +1,37 @@
+/**
+ * Cloudflare Email Worker for Relay 1025 / Inbox Orbit Mail Viewer
+ *
+ * Captures incoming emails from Cloudflare Email Routing on your domain
+ * and forwards them to your live web inbox via HTTPS POST without requiring a port 25 VPS.
+ */
 export default {
   async email(message, env, ctx) {
-    const from = message.from
-    const to = message.to
-    const subject = message.headers.get('subject')
-    const raw = await message.raw.text()
-    // Forward to free Lovable API via HTTP - no port 25 needed
-    await fetch(`${env.LOVABLE_API_URL}/api/inbound`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({from, to, subject, raw, created_at: new Date().toISOString()})
-    })
-  }
-}
+    const raw = await new Response(message.raw).text();
+    const targetBase = (env.LOVABLE_API_URL || "https://inbox-orbit-mail-viewer.lovable.app").replace(/\/+$/, "");
+    
+    // Auto-detect endpoint based on target URL
+    const endpoint = targetBase.includes("lovable.app")
+      ? `${targetBase}/api/public/inbound`
+      : `${targetBase}/api/inbound`;
+
+    const headers = {
+      "content-type": "message/rfc822",
+      "x-inbox-to": message.to,
+      "x-inbox-from": message.from,
+    };
+
+    if (env.INBOUND_TOKEN) {
+      headers["x-inbound-token"] = env.INBOUND_TOKEN;
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: raw,
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to forward email: ${response.status} ${response.statusText}`);
+    }
+  },
+};
