@@ -1,6 +1,22 @@
 name = "free-email-gateway"
 main = "worker.js"
 compatibility_date = "2024-01-01"
+
 [vars]
 LOVABLE_API_URL = "https://inbox-orbit-mail-viewer.lovable.app"
 WEBHOOK_TOKEN = "free_token_123"
+
+# Cloudflare D1 Database (100% Free Tier - 5M reads/day, 100k writes/day)
+# Run: npx wrangler d1 create email-db
+# Then uncomment and fill:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "email-db"
+# database_id = "your-d1-database-id"
+
+# Cloudflare R2 Storage (100% Free Tier - 10GB storage, 1M ops/month)
+# Run: npx wrangler r2 bucket create email-attachments
+# Then uncomment and fill:
+# [[r2_buckets]]
+# binding = "ATTACHMENTS_BUCKET"
+# bucket_name = "email-attachments"

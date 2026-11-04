@@ -1,0 +1,8 @@
+{
+  "name": "inbox-orbit-email",
+  "version": "1.0.0",
+  "description": "Inbox Orbit - Cloudflare official open-source mail viewer integration",
+  "scripts": {
+    "deploy:free": "wrangler deploy free-cloudflare-email/worker-all-in-one.js"
+  }
+}
