@@ -1,6 +1,6 @@
-name = "free-email-forwarder"
+name = "free-email-gateway"
 main = "worker.js"
 compatibility_date = "2024-01-01"
-
 [vars]
 LOVABLE_API_URL = "https://inbox-orbit-mail-viewer.lovable.app"
+WEBHOOK_TOKEN = "free_token_123"
